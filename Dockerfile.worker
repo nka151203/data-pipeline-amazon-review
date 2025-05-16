@@ -1,0 +1,51 @@
+FROM debian:bullseye-slim
+
+# Cài đặt các gói cần thiết
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openjdk-11-jdk \
+    python3 \
+    python3-pip \
+    wget \
+    curl \
+    procps \
+    netcat \
+    nano \
+    && rm -rf /var/lib/apt/lists/*
+
+# Cài đặt Spark
+ENV SPARK_VERSION=3.4.1
+ENV HADOOP_VERSION=3
+
+RUN wget -q https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz \
+    && tar -xzf spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz -C /opt/ \
+    && rm spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
+
+ENV SPARK_HOME=/opt/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}
+ENV PATH=$PATH:${SPARK_HOME}/bin:${SPARK_HOME}/sbin
+
+# Cài đặt PySpark
+RUN pip3 install --no-cache-dir pyspark==${SPARK_VERSION}
+
+# Cài đặt MinIO Client
+RUN wget -q https://dl.min.io/client/mc/release/linux-amd64/mc \
+    && chmod +x mc \
+    && mv mc /usr/local/bin/
+
+# Cài đặt MinIO Server
+RUN wget -q https://dl.min.io/server/minio/release/linux-amd64/minio \
+    && chmod +x minio \
+    && mv minio /usr/local/bin/
+
+# Tạo thư mục cho minio data
+RUN mkdir -p /data/minio
+
+# Script khởi động
+COPY worker-entrypoint.sh /worker-entrypoint.sh
+RUN chmod +x /worker-entrypoint.sh
+
+WORKDIR ${SPARK_HOME}
+
+# Cổng kết nối
+EXPOSE 8081 9000
+
+ENTRYPOINT ["/worker-entrypoint.sh"]

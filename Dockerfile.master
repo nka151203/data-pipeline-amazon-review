@@ -1,0 +1,97 @@
+FROM debian:bullseye-slim
+
+# Cài đặt các gói cần thiết
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openjdk-11-jdk \
+    python3 \
+    python3-pip \
+    python3-dev \
+    wget \
+    curl \
+    gnupg2 \
+    lsb-release \
+    procps \
+    netcat \
+    postgresql \
+    postgresql-contrib \
+    nano \
+    && rm -rf /var/lib/apt/lists/*
+
+# Cài đặt Spark
+ENV SPARK_VERSION=3.4.1
+ENV HADOOP_VERSION=3
+
+RUN wget -q https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz \
+    && tar -xzf spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz -C /opt/ \
+    && rm spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
+
+# Tải các thư viện Hadoop AWS và AWS SDK để Spark đọc được MinIO (S3A)
+RUN wget -P /opt/spark-${SPARK_VERSION}-bin-hadoop3/jars/ https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.1/hadoop-aws-3.3.1.jar \
+    && wget -P /opt/spark-${SPARK_VERSION}-bin-hadoop3/jars/ https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.11.1026/aws-java-sdk-bundle-1.11.1026.jar
+ENV SPARK_HOME=/opt/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}
+ENV PATH=$PATH:${SPARK_HOME}/bin:${SPARK_HOME}/sbin
+
+# Cài đặt MinIO Client
+RUN wget -q https://dl.min.io/client/mc/release/linux-amd64/mc \
+    && chmod +x mc \
+    && mv mc /usr/local/bin/
+
+# Cài đặt MinIO Server
+RUN wget -q https://dl.min.io/server/minio/release/linux-amd64/minio \
+    && chmod +x minio \
+    && mv minio /usr/local/bin/
+
+# Cài đặt Jupyter Notebook
+RUN pip3 install --no-cache-dir \
+    jupyter \
+    notebook \
+    pandas \
+    numpy==1.24.3 \
+    matplotlib \
+    pyspark==${SPARK_VERSION} \
+    minio \
+    psycopg2-binary \
+    sqlalchemy \
+    boto3 \
+    pyarrow \
+    smart_open
+
+# Cài đặt Metabase
+RUN mkdir -p /opt/metabase \
+    && wget -q https://downloads.metabase.com/v0.45.4/metabase.jar -O /opt/metabase/metabase.jar
+
+# Cài đặt Airflow
+ENV AIRFLOW_VERSION=2.7.2
+ENV AIRFLOW_HOME=/opt/airflow
+
+RUN pip3 install --no-cache-dir \
+    pendulum==2.1.2 \
+    apache-airflow==${AIRFLOW_VERSION} \
+    apache-airflow-providers-postgres \
+    apache-airflow-providers-apache-spark
+
+# Thiết lập PostgreSQL
+USER postgres
+RUN /etc/init.d/postgresql start && \
+    psql --command "CREATE USER airflow WITH PASSWORD 'airflow';" && \
+    createdb -O airflow airflow && \
+    psql --command "CREATE USER metabase WITH PASSWORD 'metabase';" && \
+    createdb -O metabase metabase
+USER root
+
+# Tạo thư mục cho minio data
+RUN mkdir -p /data/minio
+
+# Script khởi động
+COPY master-entrypoint.sh /master-entrypoint.sh
+RUN chmod +x /master-entrypoint.sh
+
+# Tạo thư mục logs
+RUN mkdir -p /var/log ${SPARK_HOME}/logs
+
+WORKDIR ${SPARK_HOME}
+
+# Cổng kết nối
+EXPOSE 8080 7077 9000 9001 5432 8888 3000 8081
+
+ENTRYPOINT ["/master-entrypoint.sh"]
