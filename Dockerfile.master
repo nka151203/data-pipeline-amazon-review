@@ -54,6 +54,7 @@ RUN pip3 install --no-cache-dir \
     sqlalchemy \
     boto3 \
     pyarrow \
+    python-dotenv \
     smart_open
 
 # Cài đặt Metabase

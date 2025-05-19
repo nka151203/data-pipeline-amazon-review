@@ -1,59 +1,46 @@
-#!/usr/bin/env python3
 import os
-import boto3
-import pyspark.pandas as pd
-from botocore.exceptions import ClientError
-import json
-import smart_open
-import pyarrow
+import os
 from pyspark.sql import SparkSession
-import pandas as pdo
-
-
+import boto3
+from botocore.exceptions import ClientError
+from pyspark.sql.types import *
+import json
+from dotenv import load_dotenv
+from utils.connect_minio import *
+import pyspark.pandas as ps
 
 os.environ["PYARROW_IGNORE_TIMEZONE"] = "1"
 
-# MinIO configurations
-MINIO_ENDPOINT = "http://localhost:9000" 
-MINIO_ACCESS_KEY = "minioadmin"
-MINIO_SECRET_KEY = "minioadmin"
-BUCKET_NAME = "raw-review-data"
+load_dotenv("./utils/env")
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
+BUCKET_NAME = os.getenv("BUCKET_NAME")
 
 
-# Corresponding target directories in the bucket
-TARGET_DIR_1 = "Clothing_Shoes_and_Jewelry"
-TARGET_DIR_2 = "meta_Clothing_Shoes_and_Jewelry"
+import io
+import os
+def get_next_year(s3_client, bucket):
 
-def initialize_s3_client():
-    """Initialize S3 client for MinIO"""
-    s3_client = boto3.client(
-        's3',
-        endpoint_url=MINIO_ENDPOINT,
-        aws_access_key_id=MINIO_ACCESS_KEY,
-        aws_secret_access_key=MINIO_SECRET_KEY,
-        region_name='us-east-1',
-        config=boto3.session.Config(signature_version='s3v4'),
-        verify=False  # Disable SSL verification (only for local use)
-    )
-    return s3_client
-    
+    folder_prefix = f"/check_num"
+    check_file_key = f"{folder_prefix}/check.txt"
+    try:
+        s3_client.head_object(Bucket=bucket, Key=check_file_key)
+        response = s3_client.get_object(Bucket=bucket, Key=check_file_key)
+        content = response['Body'].read().decode('utf-8').strip()
+        last_number = int(content.split()[-1])
+    except ClientError as e:
+        if e.response['Error']['Code'] == "404":
+            last_number = 1
+            s3_client.put_object(Bucket=bucket, Key=check_file_key, Body="11\n")
+            return last_number
+        else:
+            raise
 
+    new_number = last_number + 10
+    new_content = f"{content}\n{new_number}\n"
+    s3_client.put_object(Bucket=bucket, Key=check_file_key, Body=new_content)
+    print(f"✅ Đã cập nhật check.txt với giá trị mới: {new_number}")
+    return last_number
 
-def read_meta_data():
-    """
-    Read metadata using smart_open and process with pandas
-    """
-    s3_client = initialize_s3_client()
-    file_name = "meta_Grocery_and_Gourmet_Food.jsonl"
-    source_uri = f"s3a://{BUCKET_NAME}/meta_Grocery_and_Gourmet_Food/{file_name}"
-    
-    df = spark.read.json(source_uri, multiLine=True)
-    return df
-
-
-spark = SparkSession.builder.getOrCreate()
-sc = spark.sparkContext
-rdd = sc.parallelize(range(1, 1000000), 100)
-print("Số partition:", rdd.getNumPartitions())
-print("Tổng:", rdd.sum())
-
+print(get_next_year(initialize_s3_client(), BUCKET_NAME))

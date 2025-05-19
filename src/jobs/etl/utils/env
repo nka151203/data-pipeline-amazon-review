@@ -1,0 +1,7 @@
+MINIO_ENDPOINT = "http://spark-master:9000/" 
+MINIO_ACCESS_KEY = "minioadmin"
+MINIO_SECRET_KEY = "minioadmin"
+BUCKET_NAME = "raw-review-data"
+STAGING_BUCKET_NAME = "staging"
+DB_USER = "postgres"
+DB_PASSWORD = "postgres"
