@@ -8,12 +8,13 @@ import json
 from dotenv import load_dotenv
 from utils.connect_minio import *
 
-load_dotenv("./utils/env")
+
+load_dotenv("src/jobs/etl/utils/env")
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 BUCKET_NAME = os.getenv("BUCKET_NAME")
-print("Load env variables: ",MINIO_ENDPOINT)
+print("Check load env variables: ",BUCKET_NAME)
 
 # Khởi tạo SparkSession
 spark = SparkSession.builder \
@@ -31,7 +32,7 @@ spark = SparkSession.builder \
     .getOrCreate()
     
 
-spark.conf.set('spark.sql.caseSensitive', True)
+spark.conf.set('spark.sql.caseSensitive', "true")
 
 def main():
     s3_client = initialize_s3_client()
@@ -101,7 +102,6 @@ def main():
                 print(f"Lỗi khi đọc {filename}: {e}")
                 continue
 
-            #print(f"Số dòng review: {reviews_df.count()}")
 
             merged_df = reviews_df.join(metadata_df, on="parent_asin", how="inner")
             print(f"Số dòng sau khi merge: {merged_df.count()}")
@@ -113,7 +113,7 @@ def main():
                 .option("compression", "gzip") \
                 .json(local_output_path)
 
-            print(f"Đã lưu: {local_output_path}, all functions are OK")
+            print(f"Saved: {local_output_path}, all functions are OK")
 
 
 

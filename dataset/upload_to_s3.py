@@ -9,7 +9,6 @@ MINIO_SECRET_KEY = "minioadmin"
 BUCKET_NAME = "raw-review-data"
 
 def initialize_s3_client():
-    """Khởi tạo client boto3 kết nối đến MinIO"""
     s3 = boto3.client(
         "s3",
         endpoint_url=MINIO_ENDPOINT,
@@ -17,27 +16,29 @@ def initialize_s3_client():
         aws_secret_access_key=MINIO_SECRET_KEY,
         region_name="us-east-1",
         config=boto3.session.Config(signature_version="s3v4"),
-        verify=False  # Tắt SSL verification cho môi trường local
+        verify=False
     )
     return s3
 
-def upload_directory_to_minio(s3_client, local_dir, bucket_name, prefix=""):
-    """Upload toàn bộ nội dung của local_dir lên MinIO với prefix"""
+def upload_directory_to_minio(s3_client, local_dir, bucket_name, prefix=""):"
     if not os.path.exists(local_dir):
         print(f"❌ Thư mục không tồn tại: {local_dir}")
         return
 
     for root, dirs, files in os.walk(local_dir):
         for file in files:
-            local_path = os.path.join(root, file)
-            relative_path = os.path.relpath(local_path, local_dir)
-            s3_key = os.path.join(prefix, relative_path).replace("\\", "/")
+            # End with .jsonl.gz
+            if file.endswith('.jsonl.gz'):
+                local_path = os.path.join(root, file)
+                relative_path = os.path.relpath(local_path, local_dir)
+                s3_key = os.path.join(prefix, relative_path).replace("\\", "/")
 
-            try:
-                print(f"📤 Uploading {local_path} → s3://{bucket_name}/{s3_key}")
-                s3_client.upload_file(local_path, bucket_name, s3_key)
-            except ClientError as e:
-                print(f"❌ Lỗi khi upload {local_path}: {e}")
+                try:
+                    print(f"📤 Uploading {local_path} → s3://{bucket_name}/{s3_key}")
+                    s3_client.upload_file(local_path, bucket_name, s3_key)
+                except ClientError as e:
+                    print(f"❌ Lỗi khi upload {local_path}: {e}")
+    print("Done upload raw file to S3")
 
 def main():
     s3 = initialize_s3_client()

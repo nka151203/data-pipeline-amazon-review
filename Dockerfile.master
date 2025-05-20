@@ -1,7 +1,7 @@
 FROM debian:bullseye-slim
 
 # Cài đặt các gói cần thiết
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update && apt-get install -y --no-install-recommends \
     openjdk-11-jdk \
     python3 \
     python3-pip \
@@ -41,7 +41,7 @@ RUN wget -q https://dl.min.io/server/minio/release/linux-amd64/minio \
     && chmod +x minio \
     && mv minio /usr/local/bin/
 
-# Cài đặt Jupyter Notebook
+# Python libraries
 RUN pip3 install --no-cache-dir \
     jupyter \
     notebook \
@@ -55,13 +55,16 @@ RUN pip3 install --no-cache-dir \
     boto3 \
     pyarrow \
     python-dotenv \
-    smart_open
+    smart_open \
+    scikit-learn \
+    requests \
+    sentence-transformers
 
-# Cài đặt Metabase
+# Metabase
 RUN mkdir -p /opt/metabase \
     && wget -q https://downloads.metabase.com/v0.45.4/metabase.jar -O /opt/metabase/metabase.jar
 
-# Cài đặt Airflow
+# Airflow
 ENV AIRFLOW_VERSION=2.7.2
 ENV AIRFLOW_HOME=/opt/airflow
 
@@ -71,7 +74,7 @@ RUN pip3 install --no-cache-dir \
     apache-airflow-providers-postgres \
     apache-airflow-providers-apache-spark
 
-# Thiết lập PostgreSQL
+# PostgreSQL Configuration
 USER postgres
 RUN /etc/init.d/postgresql start && \
     psql --command "CREATE USER airflow WITH PASSWORD 'airflow';" && \
@@ -80,10 +83,10 @@ RUN /etc/init.d/postgresql start && \
     createdb -O metabase metabase
 USER root
 
-# Tạo thư mục cho minio data
+# Mkdir for Minio
 RUN mkdir -p /data/minio
 
-# Script khởi động
+# Start scripts
 COPY master-entrypoint.sh /master-entrypoint.sh
 RUN chmod +x /master-entrypoint.sh
 

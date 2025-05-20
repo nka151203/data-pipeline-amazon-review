@@ -4,7 +4,7 @@ from botocore.exceptions import ClientError
 from pyspark.sql.types import *
 from dotenv import load_dotenv
 
-load_dotenv("./utils/env")
+load_dotenv("src/jobs/etl/utils/env")
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
@@ -76,3 +76,5 @@ def get_folder_name(num):
         return f"Grocery_and_Gourmet_Food_part_0000{num}_merge.jsonl.gz"
     else:
         return f"Grocery_and_Gourmet_Food_part_000{num}_merge.jsonl.gz"
+    
+
