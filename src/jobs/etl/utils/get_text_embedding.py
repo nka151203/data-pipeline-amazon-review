@@ -33,6 +33,4 @@ def get_text_embedding(text, is_download =  False):
         # embeddings = model.encode([str(text)])
         # return embeddings.tolist()
         return []
-    
-print(get_text_embedding("Hello"))
 

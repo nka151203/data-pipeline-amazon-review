@@ -58,7 +58,8 @@ RUN pip3 install --no-cache-dir \
     smart_open \
     scikit-learn \
     requests \
-    sentence-transformers
+    sentence-transformers \
+    psycopg2
 
 # Metabase
 RUN mkdir -p /opt/metabase \

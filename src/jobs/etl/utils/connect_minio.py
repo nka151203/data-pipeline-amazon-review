@@ -47,7 +47,7 @@ def create_bucket(s3_client, bucket_name):
             return True
         return False
     
-def get_next_year(s3_client, bucket):
+def get_next_part(s3_client, bucket):
     folder_prefix = f"/check_num"
     check_file_key = f"{folder_prefix}/check.txt"
     try:

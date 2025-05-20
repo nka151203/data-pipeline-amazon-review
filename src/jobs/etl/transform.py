@@ -21,6 +21,8 @@ MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 BUCKET_NAME = os.getenv("BUCKET_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PORT = os.getenv("DB_PORT")
 
 # Initilize SparkSession
 spark = SparkSession.builder \
@@ -39,39 +41,6 @@ spark = SparkSession.builder \
     
 spark.conf.set('spark.sql.caseSensitive', True)
 
-def read_data(s3_client):
-    """
-    Read data from raw data bucket
-    """
-    start_point = get_next_year(s3_client, BUCKET_NAME)
-    if start_point > 220:
-        return
-    df = spark.createDataFrame([], StructType([]))
-    follow = 0
-    for i in range(start_point, start_point + 5):
-        folder_data_file = get_folder_name(i)
-        input_path = f"s3a://{BUCKET_NAME}/merged-data/{folder_data_file}"
-        review_files = spark.sparkContext._jvm.org.apache.hadoop.fs.Path(input_path)
-        review_files_fs = review_files.getFileSystem(spark.sparkContext._jsc.hadoopConfiguration())
-        review_files_list = review_files_fs.listStatus(review_files)
-        for file_status in review_files_list:
-            file_path = file_status.getPath()
-            filename = file_path.getName()
-            if filename.endswith(".json.gz"):
-                review_path = str(file_path)
-                print(f"\nĐang xử lý: {filename}")
-                try:
-                    if follow == 0:
-                        df = spark.read.json(review_path)
-                        follow += 1
-                    else:
-                        df_read = spark.read.json(review_path)
-                        df = df.union(df_read)
-                        follow += 1
-                except Exception as e:
-                    print(f"Lỗi khi đọc {filename}: {e}")
-                    continue
-    return df
 def process_review_metadata(raw_df):
     """
     Process review data side
@@ -161,7 +130,11 @@ def process_numerical_category_features(df):
     df_std = reviews_num_std_scaler.fit_transform(df_std[reviews_num_columns])
     df_std = pd.DataFrame(df_std, columns=new_reviews_num_columns)
     
-    ## 2. Encode category columns with One Hot Encoder
+    ## 2. Encode verified_purchase
+    verified_purchase_df = df_pd[["verified_purchase"]].copy()
+    verified_purchase_df["verified_purchase"] = verified_purchase_df["verified_purchase"].map(lambda x: 1 if str(x).lower() == "true" == "true" else 0)
+    
+    ## 3. Encode category columns with One Hot Encoder
     sales_category_ohe = OneHotEncoder(handle_unknown="ignore")
     # Copy the column `sales_category` of the dataframe `reviews_product_metadata_df` with the method `copy()`
     # You will need to use double square brackets to output it as a dataframe, not a series
@@ -180,10 +153,6 @@ def process_numerical_category_features(df):
         columns=sales_category_ohe.get_feature_names_out(["main_category"]),
         index=df_pd.index
     )
-    
-    ## 3. Encode verified_purchase
-    verified_purchase_df = df_pd[["verified_purchase"]].copy()
-    verified_purchase_df["verified_purchase"] = verified_purchase_df["verified_purchase"].map(lambda x: 1 if str(x).lower() == "true" == "true" else 0)
     
     ## 4. Covert back to spark dataframe
     df_pd = df_pd.drop(reviews_num_columns, axis=1)
@@ -207,22 +176,132 @@ def split_data(df):
     
     return review_text_df, product_infor_df, df
 
-def embedding
+def split_dataframe(df, chunk_size=200):
+    chunks = list()
+    num_chunks = (len(df) + chunk_size - 1) // chunk_size 
+    
+    for i in range(num_chunks):
+        chunk = df[i*chunk_size:(i+1)*chunk_size]
+        if not chunk.empty:
+            chunks.append(chunk)
+    return chunks
+
+def foward_encode_product_data(df_have_text, cursor, num):
+    """
+    """
+    df_have_text = df_have_text.toPandas()
+    # Create cursor
+    cursor = conn.cursor()
+    cursor.execute('CREATE EXTENSION IF NOT EXISTS vector')
+    register_vector(conn)
+    cursor.execute('DROP TABLE IF EXISTS product_embeddings')
+    cursor.execute('CREATE TABLE product_embeddings (asin VARCHAR(15) PRIMARY KEY, product_information TEXT, product_embedding vector(384))')
+    
+    list_df = split_dataframe(df_have_text)
+    for id, df_chunk in enumerate(list_df):
+    
+        # Convert the `asin` column from the `df_chunk` dataframe into a list with the `to_list()` method
+        asin_list = df_chunk['asin'].to_list()
+
+        # Convert the `product_information` column from the `df_chunk` dataframe into a list with the `to_list()` method
+        text_list = df_chunk['product_information'].to_list()
+
+        # Perform an API call through the `get_text_embeddings` function
+        # Pass the `ENDPOINT_URL` variable and the chunk of texts stored in the list `text_list` as parameters to that function
+        embedding_response = get_text_embedding(text=text_list)
+        
+        # Inserting the data    
+        insert_statement = f'INSERT INTO product_embeddings (asin, product_information, product_embedding) VALUES'
+        
+        value_array = [] 
+        for asin, text, embedding in zip(asin_list, text_list, embedding_response):
+            value_array.append(f"('{asin}', '{text}', '{embedding}')")
+                    
+        value_str = ",".join(value_array)
+        insert_statement = f"{insert_statement} {value_str};"
+        
+        cursor.execute(insert_statement)
+    print("Finished forward embeddings")
+
+def foward_encode_review_data(df_have_text, cursor, num):
+    """
+    """
+    df_have_text = df_have_text.toPandas()
+    # Create cursor
+    cursor = conn.cursor()
+    if num == 1:
+        cursor.execute('DROP TABLE IF EXISTS review_embeddings')
+        cursor.execute('CREATE TABLE review_embeddings (reviewerid VARCHAR(30), asin VARCHAR(15), reviewtext TEXT, review_embedding vector(384), PRIMARY KEY(reviewerid, asin))')
+    list_df = split_dataframe(df=df_have_text, chunk_size=200)
+    for id, df_chunk in enumerate(list_df):
+    
+        # Convert the `reviewerid`, `asin` and `reviewtext` columns from the `df_chunk` dataframe into a list with the `to_list()` method
+        reviewer_list = df_chunk['user_id'].to_list()
+        asin_list = df_chunk['asin'].to_list()
+        text_list = df_chunk['text'].to_list()
+
+        # Perform an API call through the `get_text_embeddings` function
+        # Pass the `ENDPOINT_URL` variable and the chunk of texts stored in the list `text_list` as parameters to that function
+        embedding_response = get_text_embeddings(text=text_list)
+
+        ### END CODE HERE ###
+        
+        # Insert the data
+        insert_statement = f'INSERT INTO review_embeddings (reviewerid, asin, reviewtext, review_embedding) VALUES'
+        value_array = [] 
+        
+        for reviewer, asin, text, embedding in zip(reviewer_list, asin_list, text_list, embedding_response):
+            value_array.append(f"('{reviewer}', '{asin}', '{text}', '{embedding}')")
+            
+        value_str = ",".join(value_array)
+        insert_statement = f"{insert_statement} {value_str};"
+        
+        cursor.execute(insert_statement) 
+def foward_encode_review_metadata(df, cursor, num):
+       
 def main():
-    df_sample = spark.read.json("s3a://raw-review-data/merged-data/Grocery_and_Gourmet_Food_part_000005_merge.jsonl.gz")
-    df_sample = process_review_metadata(df_sample)
-    df_sample = clean_text_review_metadata(df_sample)
-    df_sample = process_numerical_category_features(df_sample)
-    df1, df2, df3 = split_data(df_sample)
-    df1.show(5)
-    # df_sample.printSchema()
-    # print(df_sample.select("main_category").distinct().count())
-    # df_sample.write \
-    # .mode("overwrite") \
-    # .option("compression", "gzip") \
-    # .json("s3a://raw-review-data/check_num")
+    # df_sample = 
+    # df_sample = process_review_metadata(df_sample)
+    # df_sample = clean_text_review_metadata(df_sample)
+    # df_sample = process_numerical_category_features(df_sample)
+    # df1, df2, df3 = split_data(df_sample)
+    # df1.show(5)
+    
+    # conn = psycopg2.connect( 
+    #     database=DB_USER, user=DBUSER, 
+    #     password="", host="172.18.0.2", port="5432"
+    # ) 
+    # conn.autocommit = True
 
     #print(df_sample.count())
+    s3_client = initialize_s3_client() #S3 client for MinIO
+    num = get_next_part(s3_client, BUCKET_NAME) #Get part number
+    num = int(num)
+    file_name = get_folder_name(num)  #Get full name of a part data
+    df = spark.read.json("s3a://raw-review-data/merged-data/{file_name}")
+    df = process_review_metadata(df)
+    df = clean_text_review_metadata(df)
+    df = process_numerical_category_features(df)
+    df_product, df_review, df_rest_metadata = split_data(df)
+    
+    conn = psycopg2.connect( 
+        database=DBNAME, user=DBUSER, 
+        password=DBPASSWORD, host=DBHOST, port=DBPORT
+    ) 
+
+    # Set autocommit to true
+    conn.autocommit = True
+    # Create cursor
+    cursor = conn.cursor()
+    cursor.execute('CREATE EXTENSION IF NOT EXISTS vector')
+    register_vector(conn)
+    
+    #Send Encode product data to Postgres
+    foward_encode_product_data(df_product, cursor, num)
+    #Send Encode review data to Postgres
+    foward_encode_review_data(df_review, cursor, num)
+    #Send other transformed variables to Postgres for another model
+    foward_encode_review_metadata(df_rest_metadata, cursor, num)
 
 if __name__ == "__main__":
     main()
