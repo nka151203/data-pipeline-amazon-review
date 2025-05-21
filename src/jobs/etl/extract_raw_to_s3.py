@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from utils.connect_minio import *
 
 
-load_dotenv("src/jobs/etl/utils/env")
+load_dotenv("./utils/env")
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
@@ -76,10 +76,6 @@ def main():
     metadata_df = spark.read.schema(schema).json(metadata_path)
     metadata_df = metadata_df.drop("images", "videos", "details") 
     
-    
-
-    temp_output_dir = "temp_output"
-    os.makedirs(temp_output_dir, exist_ok=True)
 
     # Đọc review files từ MinIO
     input_path = f"s3a://{BUCKET_NAME}/Grocery_and_Gourmet_Food"

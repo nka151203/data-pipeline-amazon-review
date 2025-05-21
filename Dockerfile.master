@@ -72,7 +72,8 @@ RUN pip3 install --no-cache-dir \
     scikit-learn \
     requests \
     sentence-transformers \
-    psycopg2
+    psycopg2 \
+    pgvector
 
 # Metabase
 RUN mkdir -p /opt/metabase \

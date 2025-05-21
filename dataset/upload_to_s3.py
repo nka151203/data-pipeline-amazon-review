@@ -20,7 +20,7 @@ def initialize_s3_client():
     )
     return s3
 
-def upload_directory_to_minio(s3_client, local_dir, bucket_name, prefix=""):"
+def upload_directory_to_minio(s3_client, local_dir, bucket_name, prefix=""):
     if not os.path.exists(local_dir):
         print(f"❌ Thư mục không tồn tại: {local_dir}")
         return

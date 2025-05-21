@@ -69,12 +69,21 @@ def get_next_part(s3_client, bucket):
     print(f"Update new start point: {new_number}")
     return last_number
 
-def get_folder_name(num):
-    if num < 10:
-        return f"Grocery_and_Gourmet_Food_part_00000{num}_merge.jsonl.gz"
-    elif num >= 10 and num < 100:
-        return f"Grocery_and_Gourmet_Food_part_0000{num}_merge.jsonl.gz"
+def get_folder_name(num, is_raw_bucket = True):
+    if bucket == True:
+        if num < 10:
+            return f"Grocery_and_Gourmet_Food_part_00000{num}_merge.jsonl.gz"
+        elif num >= 10 and num < 100:
+            return f"Grocery_and_Gourmet_Food_part_0000{num}_merge.jsonl.gz"
+        else:
+            return f"Grocery_and_Gourmet_Food_part_000{num}_merge.jsonl.gz"
     else:
-        return f"Grocery_and_Gourmet_Food_part_000{num}_merge.jsonl.gz"
+        if num < 10:
+            return f"Grocery_and_Gourmet_Food_part_00000{num}_cleaned"
+        elif num >= 10 and num < 100:
+            return f"Grocery_and_Gourmet_Food_part_0000{num}_cleaned"
+        else:
+            return f"Grocery_and_Gourmet_Food_part_000{num}_cleaned"
+        
     
 

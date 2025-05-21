@@ -19,6 +19,7 @@ services:
     volumes:
       - ./dataset:/opt/dataset
       - ./src:/opt/src
+      - ./airflow/dags:/opt/airflow/dags
     environment:
       - SPARK_MODE=master
       - SPARK_MASTER_HOST=spark-master

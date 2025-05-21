@@ -3,7 +3,7 @@ import numpy as np
 
 user_permission = False
 
-def get_text_embedding(text, is_download =  False):
+def get_text_embedding(text, is_download =  True):
     if is_download == False:
         if user_permission:
             url = "https://api.deepinfra.com/v1/inference/sentence-transformers/all-MiniLM-L6-v2"
@@ -23,14 +23,18 @@ def get_text_embedding(text, is_download =  False):
                 return []
         else:
             """
-            To save on API costs, please use fake embeddings if you're only testing the pipeline.
+            To save on API costs or save inference time of model, please use fake embeddings
+            if you're only testing the pipeline.
             """
             return np.random.rand(1,384).tolist()
     else:
         #If you downloaded local sentence_transformers library
-        # from sentence_transformers import SentenceTransformer
-        # model = SentenceTransformer('all-MiniLM-L6-v2')
-        # embeddings = model.encode([str(text)])
-        # return embeddings.tolist()
-        return []
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+        embeddings = model.encode([str(text)])
+        return embeddings.tolist()
+    
+    
+a = get_text_embedding("Hello, I love Ngoc Linh")
+print(a)
 
