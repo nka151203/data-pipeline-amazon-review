@@ -12,6 +12,8 @@ from utils.get_text_embedding import *
 import pyspark.pandas as ps
 import pandas as pd
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from pgvector.psycopg2 import register_vector
+import psycopg2
 
 
 os.environ["PYARROW_IGNORE_TIMEZONE"] = "1"
@@ -173,8 +175,9 @@ def split_data(df):
     product_infor_df = df.select("asin", "product_information")
     product_infor_df =  product_infor_df.drop_duplicates()
     df = df.drop("text", "product_information")
+    df = df.drop_duplicates()
     
-    return review_text_df, product_infor_df, df
+    return product_infor_df, review_text_df, df
 
 def split_dataframe(df, chunk_size=200):
     chunks = list()
@@ -188,14 +191,13 @@ def split_dataframe(df, chunk_size=200):
 
 def foward_encode_product_data(df_have_text, cursor, num):
     """
+    Send available dataset to Postgres for ML work, including product information and embeddings
     """
     df_have_text = df_have_text.toPandas()
-    # Create cursor
-    cursor = conn.cursor()
-    cursor.execute('CREATE EXTENSION IF NOT EXISTS vector')
-    register_vector(conn)
-    cursor.execute('DROP TABLE IF EXISTS product_embeddings')
-    cursor.execute('CREATE TABLE product_embeddings (asin VARCHAR(15) PRIMARY KEY, product_information TEXT, product_embedding vector(384))')
+    if num == 1:
+        cursor.execute('CREATE EXTENSION IF NOT EXISTS vector')
+        cursor.execute('DROP TABLE IF EXISTS product_embeddings')
+        cursor.execute('CREATE TABLE product_embeddings (asin VARCHAR(15) PRIMARY KEY, product_information TEXT, product_embedding vector(384))')
     
     list_df = split_dataframe(df_have_text)
     for id, df_chunk in enumerate(list_df):
@@ -225,10 +227,9 @@ def foward_encode_product_data(df_have_text, cursor, num):
 
 def foward_encode_review_data(df_have_text, cursor, num):
     """
+    Send available dataset to Postgres for ML work, including review information and embeddings
     """
     df_have_text = df_have_text.toPandas()
-    # Create cursor
-    cursor = conn.cursor()
     if num == 1:
         cursor.execute('DROP TABLE IF EXISTS review_embeddings')
         cursor.execute('CREATE TABLE review_embeddings (reviewerid VARCHAR(30), asin VARCHAR(15), reviewtext TEXT, review_embedding vector(384), PRIMARY KEY(reviewerid, asin))')
@@ -242,7 +243,7 @@ def foward_encode_review_data(df_have_text, cursor, num):
 
         # Perform an API call through the `get_text_embeddings` function
         # Pass the `ENDPOINT_URL` variable and the chunk of texts stored in the list `text_list` as parameters to that function
-        embedding_response = get_text_embeddings(text=text_list)
+        embedding_response = get_text_embedding(text=text_list)
 
         ### END CODE HERE ###
         
@@ -257,36 +258,82 @@ def foward_encode_review_data(df_have_text, cursor, num):
         insert_statement = f"{insert_statement} {value_str};"
         
         cursor.execute(insert_statement) 
-def foward_encode_review_metadata(df, cursor, num):
-       
-def main():
-    # df_sample = 
-    # df_sample = process_review_metadata(df_sample)
-    # df_sample = clean_text_review_metadata(df_sample)
-    # df_sample = process_numerical_category_features(df_sample)
-    # df1, df2, df3 = split_data(df_sample)
-    # df1.show(5)
-    
-    # conn = psycopg2.connect( 
-    #     database=DB_USER, user=DBUSER, 
-    #     password="", host="172.18.0.2", port="5432"
-    # ) 
-    # conn.autocommit = True
+def foward_review_product_metadata(df, cursor, num):
+    """
+    Send the rest dataset to Postgres for ML work, including review metadata. 
+    This dataset will be used for another model and analytics.
+    """
+    df = df.toPandas()
+    if num == 1:
+        cursor.execute('DROP TABLE IF EXISTS review_product_metadata')
+        cursor.execute("""
+                       CREATE TABLE review_product_metadata (
+                        asin TEXT,
+                        average_rating FLOAT,
+                        helpful_vote INTEGER,
+                        parent_asin TEXT,
+                        rating FLOAT,
+                        store TEXT,
+                        user_id TEXT,
+                        year INTEGER,
+                        month INTEGER,
+                        std_price FLOAT,
+                        std_rating_number FLOAT,
+                        main_category_all_beauty FLOAT,
+                        main_category_all_electronics FLOAT,
+                        main_category_amazon_fashion FLOAT,
+                        main_category_amazon_home FLOAT,
+                        main_category_arts_crafts_sewing FLOAT,
+                        main_category_cell_phones_accessories FLOAT,
+                        main_category_computers FLOAT,
+                        main_category_grocery FLOAT,
+                        main_category_health_personal_care FLOAT,
+                        main_category_industrial_scientific FLOAT,
+                        main_category_movies_tv FLOAT,
+                        main_category_office_products FLOAT,
+                        main_category_pet_supplies FLOAT,
+                        main_category_sports_outdoors FLOAT,
+                        main_category_tools_home_improvement FLOAT,
+                        main_category_toys_games FLOAT,
+                        main_category_unspecified FLOAT,
+                        verified_purchase INTEGER,
+                        PRIMARY KEY (user_id, asin)
+                    );
+        """)
+        insert_query = """
+            INSERT INTO review_product_metadata (
+                asin, average_rating, helpful_vote, parent_asin, rating, store, user_id, year, month,
+                std_price, std_rating_number, main_category_all_beauty, main_category_all_electronics,
+                main_category_amazon_fashion, main_category_amazon_home, main_category_arts_crafts_sewing,
+                main_category_cell_phones_accessories, main_category_computers, main_category_grocery,
+                main_category_health_personal_care, main_category_industrial_scientific, main_category_movies_tv,
+                main_category_office_products, main_category_pet_supplies, main_category_sports_outdoors,
+                main_category_tools_home_improvement, main_category_toys_games, main_category_unspecified,
+                verified_purchase
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+    for i, row in df.iterrows():
+        cursor.execute(insert_query, tuple(row))
 
-    #print(df_sample.count())
+        
+def main():
     s3_client = initialize_s3_client() #S3 client for MinIO
-    num = get_next_part(s3_client, BUCKET_NAME) #Get part number
-    num = int(num)
-    file_name = get_folder_name(num)  #Get full name of a part data
-    df = spark.read.json("s3a://raw-review-data/merged-data/{file_name}")
+    # num = get_next_part(s3_client, BUCKET_NAME) #Get part number
+    # num = int(num)
+    # file_name = get_folder_name(num)  #Get full name of a part data
+    num = 1
+    file_name = "Grocery_and_Gourmet_Food_part_000221_merge.jsonl.gz"
+    print("Processing: ", file_name) 
+    df = spark.read.json(f"s3a://raw-review-data/merged-data/{file_name}/*.json.gz")
     df = process_review_metadata(df)
     df = clean_text_review_metadata(df)
     df = process_numerical_category_features(df)
-    df_product, df_review, df_rest_metadata = split_data(df)
-    
+    df_product, df_review, df_rest_review_metadata = split_data(df)
+    df_product.printSchema()
+    df_review.printSchema()
     conn = psycopg2.connect( 
-        database=DBNAME, user=DBUSER, 
-        password=DBPASSWORD, host=DBHOST, port=DBPORT
+        database="postgres", user="postgres", 
+        password="", host="172.18.0.2", port="5432"
     ) 
 
     # Set autocommit to true
@@ -296,12 +343,18 @@ def main():
     cursor.execute('CREATE EXTENSION IF NOT EXISTS vector')
     register_vector(conn)
     
+    cursor.execute('DROP TABLE IF EXISTS product_embeddings')
+    cursor.execute('DROP TABLE IF EXISTS review_embeddings')
+    cursor.execute('DROP TABLE IF EXISTS review_product_metadata')
+    
     #Send Encode product data to Postgres
     foward_encode_product_data(df_product, cursor, num)
     #Send Encode review data to Postgres
     foward_encode_review_data(df_review, cursor, num)
-    #Send other transformed variables to Postgres for another model
-    foward_encode_review_metadata(df_rest_metadata, cursor, num)
+    #Send other transformed data to Postgres for another model and analytics.
+    foward_review_product_metadata(df_rest_review_metadata, cursor, num)
+    
+    print("CONGRATS, YOU HAVE FINISHED TRANSFORM PROCESS !  ")
 
 if __name__ == "__main__":
     main()

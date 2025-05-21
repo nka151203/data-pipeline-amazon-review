@@ -15,7 +15,20 @@ RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false upd
     postgresql \
     postgresql-contrib \
     nano \
+    git \
+    build-essential \
+    pgvector \
     && rm -rf /var/lib/apt/lists/*
+
+# Cài đặt PostgreSQL extension pgvector
+RUN RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-13 postgresql-server-dev-13 postgresql-contrib-13
+
+RUN git clone https://github.com/pgvector/pgvector.git /tmp/pgvector \
+    && cd /tmp/pgvector && make && make install \
+    && rm -rf /tmp/pgvector \
+    && apt-get remove -y git make gcc \
+    && apt-get autoremove -y && apt-get clean
 
 # Cài đặt Spark
 ENV SPARK_VERSION=3.4.1

@@ -4,7 +4,7 @@ from botocore.exceptions import ClientError
 from pyspark.sql.types import *
 from dotenv import load_dotenv
 
-load_dotenv("src/jobs/etl/utils/env")
+load_dotenv("./utils/env")
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
@@ -58,12 +58,12 @@ def get_next_part(s3_client, bucket):
     except ClientError as e:
         if e.response['Error']['Code'] == "404":
             last_number = 1
-            s3_client.put_object(Bucket=bucket, Key=check_file_key, Body="11\n")
+            s3_client.put_object(Bucket=bucket, Key=check_file_key, Body="2\n")
             return last_number
         else:
             raise
 
-    new_number = last_number + 10
+    new_number = last_number + 1
     new_content = f"{content}\n{new_number}\n"
     s3_client.put_object(Bucket=bucket, Key=check_file_key, Body=new_content)
     print(f"Update new start point: {new_number}")
