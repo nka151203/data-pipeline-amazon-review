@@ -17,6 +17,7 @@ RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false upd
     nano \
     git \
     build-essential \
+    postgresql-server-dev-13 \
     pgvector \
     && rm -rf /var/lib/apt/lists/*
 
@@ -104,6 +105,10 @@ RUN mkdir -p /data/minio
 # Start scripts
 COPY master-entrypoint.sh /master-entrypoint.sh
 RUN chmod +x /master-entrypoint.sh
+
+COPY config/postgres/postgresql.conf /etc/postgresql/13/main/postgresql.conf
+COPY config/postgres/pg_hba.conf /etc/postgresql/13/main/pg_hba.conf
+RUN chown +x /etc/postgresql/13/main/*.conf
 
 # Tạo thư mục logs
 RUN mkdir -p /var/log ${SPARK_HOME}/logs

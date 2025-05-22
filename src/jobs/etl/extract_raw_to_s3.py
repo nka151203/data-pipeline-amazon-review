@@ -9,14 +9,14 @@ from dotenv import load_dotenv
 from utils.connect_minio import *
 
 
-load_dotenv("./utils/env")
+load_dotenv("/opt/src/jobs/etl/utils/env")
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 BUCKET_NAME = os.getenv("BUCKET_NAME")
 print("Check load env variables: ",BUCKET_NAME)
 
-# Khởi tạo SparkSession
+# SparkSession Initializion
 spark = SparkSession.builder \
     .appName("Merge Reviews with Metadata") \
     .master("spark://spark-master:7077") \
@@ -35,10 +35,8 @@ spark = SparkSession.builder \
 spark.conf.set('spark.sql.caseSensitive', "true")
 
 def main():
-    s3_client = initialize_s3_client()
-    if check_bucket_exists(s3_client, BUCKET_NAME) == False:
-        create_bucket(s3_client, BUCKET_NAME)
-        
+    
+    #Schema for Metadata
     schema = StructType([
         StructField("main_category", StringType(), True),
         StructField("title", StringType(), True),
@@ -71,13 +69,13 @@ def main():
         StructField("bought_together", StringType(), True)
     ])
     
-    # Đọc metadata từ MinIO    
+    # Read metadaya MinIO    
     metadata_path = f"s3a://{BUCKET_NAME}/meta_Grocery_and_Gourmet_Food/meta_Grocery_and_Gourmet_Food.jsonl.gz"
     metadata_df = spark.read.schema(schema).json(metadata_path)
     metadata_df = metadata_df.drop("images", "videos", "details") 
     
 
-    # Đọc review files từ MinIO
+    # Read review data from  MinIO
     input_path = f"s3a://{BUCKET_NAME}/Grocery_and_Gourmet_Food"
     review_files = spark.sparkContext._jvm.org.apache.hadoop.fs.Path(input_path)
     review_files_fs = review_files.getFileSystem(spark.sparkContext._jsc.hadoopConfiguration())
@@ -89,18 +87,18 @@ def main():
         
         if filename.endswith(".jsonl.gz"):
             review_path = str(file_path)
-            print(f"\nĐang xử lý: {filename}")
+            print(f"\nExtract Raw: {filename}")
 
             try:
                 reviews_df = spark.read.json(review_path)
                 reviews_df = reviews_df.drop("title", "images")
             except Exception as e:
-                print(f"Lỗi khi đọc {filename}: {e}")
+                print(f"Error {filename}: {e}")
                 continue
 
 
             merged_df = reviews_df.join(metadata_df, on="parent_asin", how="inner")
-            print(f"Số dòng sau khi merge: {merged_df.count()}")
+            print(f"Merged file length: {merged_df.count()}")
 
             output_filename = filename.replace(".jsonl.gz", "_merge.jsonl.gz")
             local_output_path = os.path.join("s3a://raw-review-data/merged-data", output_filename)

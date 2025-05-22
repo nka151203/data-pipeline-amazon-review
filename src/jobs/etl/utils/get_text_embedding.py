@@ -3,7 +3,7 @@ import numpy as np
 
 user_permission = False
 
-def get_text_embedding(text, is_download =  True):
+def get_text_embedding(text, is_download =  False):
     if is_download == False:
         if user_permission:
             url = "https://api.deepinfra.com/v1/inference/sentence-transformers/all-MiniLM-L6-v2"
@@ -36,5 +36,4 @@ def get_text_embedding(text, is_download =  True):
     
     
 a = get_text_embedding("Hello, I love Ngoc Linh")
-print(a)
 

@@ -4,7 +4,7 @@ from botocore.exceptions import ClientError
 from pyspark.sql.types import *
 from dotenv import load_dotenv
 
-load_dotenv("./utils/env")
+load_dotenv("/opt/src/jobs/etl/utils/env")
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
@@ -47,7 +47,7 @@ def create_bucket(s3_client, bucket_name):
             return True
         return False
     
-def get_next_part(s3_client, bucket):
+def get_next_part(s3_client, bucket, is_load_function = False):
     folder_prefix = f"/check_num"
     check_file_key = f"{folder_prefix}/check.txt"
     try:
@@ -62,15 +62,17 @@ def get_next_part(s3_client, bucket):
             return last_number
         else:
             raise
-
-    new_number = last_number + 1
-    new_content = f"{content}\n{new_number}\n"
-    s3_client.put_object(Bucket=bucket, Key=check_file_key, Body=new_content)
-    print(f"Update new start point: {new_number}")
+    if is_load_function == False:
+        new_number = last_number + 1
+        new_content = f"{content}\n{new_number}\n"
+        s3_client.put_object(Bucket=bucket, Key=check_file_key, Body=new_content)
+        print(f"Update new start point: {new_number}")
+    else:
+        print("Don't need update because you only read for load")
     return last_number
 
 def get_folder_name(num, is_raw_bucket = True):
-    if bucket == True:
+    if is_raw_bucket == True:
         if num < 10:
             return f"Grocery_and_Gourmet_Food_part_00000{num}_merge.jsonl.gz"
         elif num >= 10 and num < 100:

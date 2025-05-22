@@ -100,12 +100,16 @@ wget -O ./meta_Grocery_and_Gourmet_Food/meta_Grocery_and_Gourmet_Food.jsonl.gz h
 python -m venv venv
 venv\Scripts\activate.bat
 python dividing_dataset.py
-python upload_to_s3.py
+exit
+docker exec -it spark-master python3 /opt/dataset/upload_to_s3.py
+docker exec -it spark-master python3 /opt/src/jobs/etl/extract_raw_to_s3.py
 #For Linux/macOS
 python3 -m venv venv
 source venv/bin/activate
 python dividing_dataset.py
-python upload_to_s3.py
+exit
+docker exec -it spark-master python3 /opt/dataset/upload_to_s3.py
+docker exec -it spark-master python3 /opt/src/jobs/etl/extract_raw_to_s3.py
 ```
 ### 5.2. Access the Services
 

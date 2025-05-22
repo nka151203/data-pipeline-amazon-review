@@ -133,6 +133,7 @@ def foward_review_product_metadata(df, cursor, num):
     """
     df.printSchema()
     df = df.toPandas()
+    print("Total null cells:", df.isnull().sum().sum())
     if num == 1:
         cursor.execute('DROP TABLE IF EXISTS review_product_metadata')
         cursor.execute("""
@@ -182,15 +183,15 @@ def foward_review_product_metadata(df, cursor, num):
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     for i, row in df.iterrows():
-        cursor.execute(insert_query, tuple(row))
-        flag = flag + 1
+        if len(tuple(row)) == 29: cursor.execute(insert_query, tuple(row))
+        else: continue
     print("Finished forward metadata data embeddings")
     
 def main():
     
     s3_client = initialize_s3_client() #S3 client for MinIO
-    num = get_next_part(s3_client, BUCKET_NAME) #Get part number
-    num = int(num)
+    num = get_next_part(s3_client, "raw-review-data", True) #Get part number
+    num = int(num) - 1
     file_name = get_folder_name(num, False)  #Get full name of a part data
     # num = 1
     # file_name = "Grocery_and_Gourmet_Food_part_000221_cleaned"  
