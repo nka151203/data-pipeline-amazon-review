@@ -126,7 +126,7 @@ docker exec -it spark-master python3 /opt/src/jobs/etl/extract_raw_to_s3.py
 
 ## 6. ETL Workflow
 
-1. After **step 5.1**, you uploaded raw dataset into MinIO, let's check http://localhost:9001/raw-data-set
+1. After **step 5.1**, you uploaded raw dataset into MinIO, let's check http://localhost:9001/raw-review-data
 2. Access http://localhost:8081 local, navigate to the DAG named `transform_load_every_5_min`, and trigger it to automatically perform the data transformation and loading process for downstream purposes.
 3. You can see some results which existed at http://localhost:9001/cleaned-review-data
 5. Jupyter can be used for testing Spark jobs or querying PostgreSQL. Check it by accessing http://localhost:8888 and open  `data-pipeline-amazon-review\src\test\preview_table.ipynb`
