@@ -111,7 +111,8 @@ python upload_to_s3.py
 
 | Service        | URL                      | Default Credentials          |
 |----------------|--------------------------|------------------------------|
-| Airflow UI     | http://localhost:8080    | admin / admin                |
+| Spark UI     | http://localhost:8080           | Auto |
+| Airflow UI     | http://localhost:8081   | admin / admin                |
 | Jupyter        | http://localhost:8888    | auto-generated token         |
 | Metabase       | http://localhost:3000    | configured on first login    |
 | MinIO Console  | http://localhost:9001    | minioadmin / minioadmin      |
